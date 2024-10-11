@@ -1,0 +1,23 @@
+version: 3
+
+includes:
+  management-groups:
+    taskfile: taskfiles/management-groups.yaml
+    flatten: true
+  entra-id-groups:
+    taskfile: taskfiles/entra-id-groups.yaml
+    flatten: true
+  entra-id-permissions:
+    taskfile: taskfiles/entra-id-permissions.yaml
+    flatten: true
+
+vars:
+  MG_PREFIX: mg-caf
+  ROOT_MG: "{{ .MG_PREFIX }}-root"
+  MG_LOCATION: "westeurope"
+
+tasks:
+  default:
+    desc: Default task to list available tasks.
+    cmds:
+      - task --list --sort none

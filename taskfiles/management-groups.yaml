@@ -1,0 +1,41 @@
+version: 3
+
+vars:
+  PREFIX: "[{{ .TASKFILE | base | replace \".yaml\" \"\" | upper }}]"
+
+tasks:
+  install-root-mg:
+    desc: "{{ .PREFIX }} Install the root management group using Azure CLI"
+    status:
+      - az account management-group show 
+        --name "{{ .ROOT_MG }}" 
+        --query "[id, displayName]" 
+        --output tsv | grep -qPz "{{ .ROOT_MG }}\n.*Azure Root"
+    cmds:
+      - az account management-group create 
+          --name "{{ .ROOT_MG }}" 
+          --display-name "Azure Root"
+
+  deploy-management-groups:
+    desc: "{{ .PREFIX }} Deploy management groups to the root management group"
+    deps: [install-root-mg]
+    cmds:
+      - az deployment mg create 
+          --management-group-id "{{ .ROOT_MG }}"
+          --template-file bicep/modules/management-groups.bicep 
+          --location "{{ .MG_LOCATION }}"
+          --parameters 
+              rootManagementGroupId="{{ .ROOT_MG }}" 
+              prefix="{{ .MG_PREFIX }}"
+              location="{{ .MG_LOCATION }}"
+
+  configure-tenant-mg-settings:
+    desc: "{{ .PREFIX }} Configure tenant-level management group settings"
+    requires:
+      vars: 
+        - TENANT_ID
+    cmds:
+      - az account management-group hierarchy-settings create 
+          --name "/providers/Microsoft.Management/managementGroups/{{ .TENANT_ID }}"
+          --default-management-group "{{ .MG_PREFIX }}-sandbox"
+          --require-authorization-for-group-creation true

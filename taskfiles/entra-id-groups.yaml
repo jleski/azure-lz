@@ -1,0 +1,61 @@
+version: 3
+
+vars:
+  PREFIX: "[{{ .TASKFILE | base | replace \".yaml\" \"\" | upper }}]"
+
+tasks:
+  preview-entra-id-groups:
+    cmds:
+      - |
+        truncate_and_hash() {
+          local full_name="$1"
+          local max_length=30
+          local truncated="${full_name:0:$max_length}"
+          local hash=$(echo -n "$full_name" | md5sum | cut -c1-8)
+          echo "${truncated}-${hash}"
+        }
+        roles=("Owner" "Reader" "Contributor" "User Access Administrator")
+        for mg in $(az account management-group list --query "[?starts_with(name, '{{.MG_PREFIX}}')].{name:name,displayName:displayName}" -o tsv); do
+          name=$(echo $mg | cut -f1)
+          if [[ $name == {{.MG_PREFIX}}* ]]; then
+            displayName=$(echo $mg | cut -f2)
+            echo "Management Group: $name, Display Name: $displayName"
+            for role in "${roles[@]}"; do
+              group_name="MG - $displayName $role"
+              #mail_nickname="${name}-${role,,}"
+              mail_nickname="mg-$(truncate_and_hash "$name")-${role:0:1}-admins"
+              #echo "Group name: $group_name, mail nickname: $mail_nickname"
+            done
+            echo "---------------------------------------------"
+          fi
+        done
+
+  create-entra-id-groups:
+    desc: "{{ .PREFIX }} Create Entra ID groups for each management group"
+    cmds:
+      - |
+        truncate_and_hash() {
+          local full_name="$1"
+          local max_length=30
+          local truncated="${full_name:0:$max_length}"
+          local hash=$(echo -n "$full_name" | md5sum | cut -c1-8)
+          echo "${truncated}-${hash}"
+        }
+        roles=("Owner" "Reader" "Contributor" "User Access Administrator")
+        for mg in $(az account management-group list --query "[?starts_with(name, '{{.MG_PREFIX}}')].{name:name,displayName:displayName}" -o tsv); do
+          name=$(echo $mg | cut -f1)
+          if [[ $name == {{.MG_PREFIX}}* ]]; then
+            displayName=$(echo $mg | cut -f2)
+            for role in "${roles[@]}"; do
+              group_name="MG - $displayName $role"
+              #mail_nickname="${name}-${role,,}"
+              mail_nickname="mg-$(truncate_and_hash "$name")-${role:0:1}-admins"
+              if ! az ad group show --group "$group_name" &>/dev/null; then
+                az ad group create --display-name "$group_name" --mail-nickname "$mail_nickname"
+                echo "Created group: $group_name"
+              else
+                echo "Group '$group_name' already exists. Skipping creation."
+              fi
+            done
+          fi
+        done
